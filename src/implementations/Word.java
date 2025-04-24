@@ -4,10 +4,14 @@ public class Word implements Comparable<Word>{
 		
 		private String text;
 		private int count;
-		public Word (String text)
+		private String files = "";
+		private String lines = "";
+		public Word (String text,int line,String file)
 		{
 			this.text = text;
-					this.count = 1;
+			this.files = file;
+			this.lines = String.valueOf(line);
+			this.count = 1;
 		}
 		
 		public void incrementCount () {
@@ -16,10 +20,23 @@ public class Word implements Comparable<Word>{
 		public int getCount() {
 			return count;
 		}
+		public void addLine (int line) {
+			lines = lines + ", " + line;
+		}
+		public String getLine () {
+			return lines;
+		}
+		public void addFile (String file) {
+			files = files + ", " + file;
+		}
+		public String getFile () {
+			return files;
+		}
 		public String getText()
 		{
 			return text;
 		}
+		
 		@Override
 		public int compareTo(Word other) {
 			return this.text.compareTo(other.text);
@@ -44,5 +61,3 @@ public class Word implements Comparable<Word>{
 		}
 		
 	}
-
-}
