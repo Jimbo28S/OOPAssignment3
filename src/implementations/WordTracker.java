@@ -1,95 +1,154 @@
 package implementations;
+
 import utilities.Iterator;
-import java.io.File;
-import java.io.FileNotFoundException;
+import implementations.BSTree;
+import implementations.Word;
+
+import java.io.*;
+import java.util.ArrayList;
 import java.util.Scanner;
 
 public class WordTracker {
-	public static void main(String[]args) {
-		if (args.length != 1) {
-			System.out.println("Usage:java WordTracker<filename>");
-			return;
-		
-		}
-		int option = 0;
-		if (args[1] == "-pf") {
-			option = 1;
-		}
-		else if (args[1] == "-pl") {
-			option = 2;
-		}
-		else if (args[1] == "-po") {
-			option = 3;
-		}
-		String filename = args [0];
-		BSTree<Word> tree= new BSTree<>();
-		try (Scanner scanner = new Scanner (new File(filename))){
-			
-			int lineNumber = 0;
-			
-			while
-				(scanner.hasNext()) {
-				String wordText = scanner.next().replaceAll("[^a-zA-Z]"," ").toLowerCase();
-				if (!wordText.isEmpty( )) {
-					Word word = new Word(wordText,lineNumber,filename); 
-					Word found = tree.search(word).data;
-					if
-					(found == null) {
-						tree.add(word);
-					}else
-					{
-						found.incrementCount();
-						found.addFile(filename);
-						found.addLine(lineNumber);
-						if (wordText.contains("/n")) {
-							lineNumber++;
-						}
-						
-					}
-					
-					
-				}
-			}
-			//*Need to include what files these words are in & include what lines the words are in.
-			//Option 1 need to be in alphabetical order and the files they appear in. check args list for -PF
-			//Option 2 alphabetical files and line numbers. -PL
-			//Option 3 alpha order files words are in lines they're in and frequency they appear in. -PO.
-			
-			switch (option) {
-			case 1: System.out.println("Words and their files in alphabetical order:");
-			Iterator <Word> iterator1 = tree.inorderIterator();
-			while (iterator1.hasNext()) {
-				Word current = iterator1.next();
-				System.out.println(current.getText()+ "Is in file: " + current.getFile());
-			}
-			break;
-			
-			case 2: System.out.println("Words and their files and their lines in alphabetical order:");
-			Iterator <Word> iterator2 = tree.inorderIterator();
-			while (iterator2.hasNext()) {
-				Word current = iterator2.next();
-				System.out.println(current.getText() + "Is in file: " + current.getFile() + "Is in lines: " + current.getLine());
-			}
-			break;
-			
-			case 3: System.out.println("Words, their files, their lines and their frequencies in alphabetical order:");
-			Iterator <Word> iterator3 = tree.inorderIterator();
-			while (iterator3.hasNext()) {
-				Word current = iterator3.next();
-				System.out.println(current.getText() + "Is in file: " 
-				+ current.getFile() + "Is in lines: " 
-				+ current.getLine() + "With frequency: " 
-				+ current.getCount());
-			}
-			break;
-			
-			default: System.out.println("Option is N/A");
-				
-				break;
-			}
-		}
-		catch (FileNotFoundException e) {
-			System.out.println("File not found: "+ filename);
-		}
-	}
+
+    private static final String SERIALIZED_FILE = "repository.ser";
+
+    public static void main(String[] args) {
+        if (args.length < 2) {
+            System.out.println("Usage: java -jar WordTracker.jar <input.txt> -pf/-pl/-po [-f<output.txt>]");
+            return;
+        }
+
+        String inputFileName = args[0];
+        String option = args[1];
+        String outputFileName = null;
+
+        if (args.length == 3 && args[2].startsWith("-f")) {
+            outputFileName = args[2].substring(2); // Extract filename after -f
+        }
+
+        // Load tree from serialized pre-order list
+        BSTree<Word> tree = loadTree();
+
+        // Read and process input file
+        try (Scanner scanner = new Scanner(new File(inputFileName))) {
+            int lineNumber = 0;
+
+            while (scanner.hasNextLine()) {
+                lineNumber++;
+                String line = scanner.nextLine();
+                Scanner lineScanner = new Scanner(line);
+
+                while (lineScanner.hasNext()) {
+                    String wordText = lineScanner.next().replaceAll("[^a-zA-Z]", "").toLowerCase();
+                    if (!wordText.isEmpty()) {
+                        Word word = new Word(wordText, lineNumber, inputFileName);
+                        BSTreeNode<Word> node = tree.search(word);
+
+                        if (node == null) {
+                            tree.add(word);
+                        } else {
+                            Word existing = node.getElement();
+                            existing.incrementCount();
+                            existing.addFile(inputFileName);
+                            existing.addLine(lineNumber);
+                        }
+                    }
+                }
+
+                lineScanner.close();
+            }
+
+        } catch (FileNotFoundException e) {
+            System.out.println("File not found: " + inputFileName);
+            return;
+        }
+
+        // Prepare output destination
+        PrintStream out = System.out;
+        try {
+            if (outputFileName != null) {
+                out = new PrintStream(new FileOutputStream(outputFileName));
+            }
+        } catch (FileNotFoundException e) {
+            System.out.println("Could not write to file: " + outputFileName);
+            return;
+        }
+
+        // Output based on command-line option
+        Iterator<Word> iterator = tree.inorderIterator();
+
+        switch (option) {
+            case "-pf":
+                out.println("Words and their files:");
+                while (iterator.hasNext()) {
+                    Word word = iterator.next();
+                    out.println(word.getText() + " | File(s): " + word.getFile());
+                }
+                break;
+
+            case "-pl":
+                out.println("Words and their files with line numbers:");
+                while (iterator.hasNext()) {
+                    Word word = iterator.next();
+                    out.println(word.getText() + " | File(s): " + word.getFile() + " | Lines: " + word.getLine());
+                }
+                break;
+
+            case "-po":
+                out.println("Words, files, lines, and frequency:");
+                while (iterator.hasNext()) {
+                    Word word = iterator.next();
+                    out.println(word.getText() + " | File(s): " + word.getFile() + " | Lines: " + word.getLine() + " | Count: " + word.getCount());
+                }
+                break;
+
+            default:
+                out.println("Invalid option. Use -pf, -pl, or -po.");
+        }
+
+        if (out != System.out) {
+            out.close();
+        }
+
+        // Save pre-order list of words to serialized file
+        saveTree(tree);
+    }
+
+    private static BSTree<Word> loadTree() {
+        File file = new File(SERIALIZED_FILE);
+        if (!file.exists()) return new BSTree<>();
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+            Object obj = ois.readObject();
+            if (obj instanceof ArrayList<?>) {
+                @SuppressWarnings("unchecked")
+                ArrayList<Word> wordList = (ArrayList<Word>) obj;
+                BSTree<Word> tree = new BSTree<>();
+                for (Word word : wordList) {
+                    tree.add(word);
+                }
+                System.out.println("Rebuilt BSTree from pre-order serialized word list.");
+                return tree;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("Failed to load tree: " + e.getMessage());
+        }
+
+        return new BSTree<>();
+    }
+
+    private static void saveTree(BSTree<Word> tree) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(SERIALIZED_FILE))) {
+            ArrayList<Word> preorderList = new ArrayList<>();
+            Iterator<Word> preorder = tree.preorderIterator();
+            while (preorder.hasNext()) {
+                preorderList.add(preorder.next());
+            }
+            oos.writeObject(preorderList);
+            System.out.println("Saved BSTree as pre-order word list to " + SERIALIZED_FILE);
+        } catch (IOException e) {
+            System.out.println("Failed to save tree: " + e.getMessage());
+        }
+    }
 }
+
